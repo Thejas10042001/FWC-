@@ -23,6 +23,7 @@ export default function VoiceInterview({ candidates }: VoiceInterviewProps) {
   // Script dialog states
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [audioBase64, setAudioBase64] = useState("");
+  const [audioMimeType, setAudioMimeType] = useState("audio/wav");
   const [userAnswerText, setUserAnswerText] = useState("");
   const [transcriptLog, setTranscriptLog] = useState<Array<{ sender: "AI" | "Candidate"; text: string }>>([]);
   
@@ -82,15 +83,79 @@ export default function VoiceInterview({ candidates }: VoiceInterviewProps) {
   };
 
   // Play synthetic voice question base64 URI
-  const playAudio = (base64: string) => {
+  // Translates raw 16-bit PCM 24kHz to containerized browser-playable WAV if needed
+  const playAudio = (base64: string, mimeType: string = "audio/wav") => {
     if (!base64) return;
     try {
-      const dataUri = `data:audio/mp3;base64,${base64}`;
-      const audio = new Audio(dataUri);
-      audio.play();
+      const binaryString = window.atob(base64);
+      
+      // Check if starts with WAV "RIFF" signature (0x52494646)
+      const isRiff = binaryString.length >= 4 && 
+                     binaryString.charCodeAt(0) === 0x52 && // R
+                     binaryString.charCodeAt(1) === 0x49 && // I
+                     binaryString.charCodeAt(2) === 0x46 && // F
+                     binaryString.charCodeAt(3) === 0x46;   // F
+
+      let audioUrl = "";
+      if (isRiff) {
+        // It's already containerized. Use it directly via Blob URL
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: "audio/wav" });
+        audioUrl = URL.createObjectURL(blob);
+      } else {
+        // Standard raw PCM 16-bit mono 24kHz returned by Gemini. Prepend 44-byte WAV header.
+        const pcmLength = binaryString.length;
+        const buffer = new ArrayBuffer(44 + pcmLength);
+        const view = new DataView(buffer);
+        
+        // "RIFF"
+        view.setUint32(0, 0x52494646, false);
+        // Size
+        view.setUint32(4, 36 + pcmLength, true);
+        // "WAVE"
+        view.setUint32(8, 0x57415645, false);
+        // "fmt " chunk
+        view.setUint32(12, 0x666d7420, false);
+        // Chunk size (16)
+        view.setUint32(16, 16, true);
+        // Format (1 = PCM)
+        view.setUint16(20, 1, true);
+        // Channels (1 = Mono)
+        view.setUint16(22, 1, true);
+        // Sample Rate (24000 Hz)
+        view.setUint32(24, 24000, true);
+        // Byte Rate (sampleRate * bitsPerSample * channels / 8 = 24000 * 2 = 48000)
+        view.setUint32(28, 48000, true);
+        // Block Align (channels * bitsPerSample / 8 = 2)
+        view.setUint16(32, 2, true);
+        // Bits per Sample (16)
+        view.setUint16(34, 16, true);
+        // "data" chunk
+        view.setUint32(36, 0x64617461, false);
+        // Chunk length
+        view.setUint32(40, pcmLength, true);
+        
+        const bytes = new Uint8Array(buffer, 44, pcmLength);
+        for (let i = 0; i < pcmLength; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const blob = new Blob([buffer], { type: "audio/wav" });
+        audioUrl = URL.createObjectURL(blob);
+      }
+
+      const audio = new Audio(audioUrl);
+      audio.play().catch(playErr => {
+        console.warn("Autoplay block or playback interruption:", playErr);
+        setNotifying("AI Speak queued. Click 'Replay Audio' if your browser blocked autoplay.");
+      });
     } catch (err) {
-      console.error("Audio playback error:", err);
-      setNotifying("Audio reproduction skipped by browser frame policies.");
+      console.error("Audio playback preparation error:", err);
+      setNotifying("Audio decoding failed.");
     }
   };
 
@@ -111,8 +176,9 @@ export default function VoiceInterview({ candidates }: VoiceInterviewProps) {
       if (response.ok && data.success) {
         setCurrentQuestion(data.question);
         setAudioBase64(data.audioBase64);
+        setAudioMimeType(data.audioMimeType || "audio/wav");
         setTranscriptLog([{ sender: "AI", text: data.question }]);
-        playAudio(data.audioBase64);
+        playAudio(data.audioBase64, data.audioMimeType || "audio/wav");
         setStatus("Interview Active");
         setNotifying("AI Speak simulation playing...");
       }
@@ -148,8 +214,9 @@ export default function VoiceInterview({ candidates }: VoiceInterviewProps) {
       if (response.ok && data.success) {
         setCurrentQuestion(data.question);
         setAudioBase64(data.audioBase64);
+        setAudioMimeType(data.audioMimeType || "audio/wav");
         setTranscriptLog(prev => [...prev, { sender: "AI", text: data.question }]);
-        playAudio(data.audioBase64);
+        playAudio(data.audioBase64, data.audioMimeType || "audio/wav");
         setNotifying("");
       }
     } catch (err) {
@@ -271,7 +338,7 @@ export default function VoiceInterview({ candidates }: VoiceInterviewProps) {
                   
                   {log.sender === "AI" && idx === transcriptLog.length - 1 && audioBase64 && (
                     <button
-                      onClick={() => playAudio(audioBase64)}
+                      onClick={() => playAudio(audioBase64, audioMimeType)}
                       className="mt-3 flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[9px] font-bold text-slate-700 transition"
                     >
                       <Volume2 className="h-3.5 w-3.5" />

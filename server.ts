@@ -4,6 +4,7 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { UserRole, UserProfile, Employee, Attendance, LeaveRequest, PayrollRecord, PerformanceRecord, JobVacancy, Candidate, InterviewRecord } from "./src/types.js";
+import { calculatePayroll } from "./src/utils/payrollCalculator.js";
 
 // Initialize Gemini API
 const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -766,17 +767,7 @@ app.post("/api/payroll/generate-all", (req, res) => {
     .filter((emp) => emp.employmentStatus === "Active" || emp.employmentStatus === "On Leave")
     .map((emp) => {
       const baseSalary = emp.salary;
-      const allowances = Math.round(baseSalary * 0.15); // Medical & HRA
-      const pfDeduction = Math.round(baseSalary * 0.12); // standard 12% PF
-      const esiDeduction = baseSalary > 21000 ? 0 : Math.round(baseSalary * 0.0075); // standard 0.75% ESI deduction limit
-      
-      // Calculate TDS tax deduction based on brackets
-      let taxDeduction = 0;
-      if (baseSalary > 12000) taxDeduction = Math.round(baseSalary * 0.20);
-      else if (baseSalary > 8000) taxDeduction = Math.round(baseSalary * 0.15);
-      else if (baseSalary > 5000) taxDeduction = Math.round(baseSalary * 0.10);
-      
-      const netSalary = baseSalary + allowances - pfDeduction - esiDeduction - taxDeduction;
+      const { allowances, pfDeduction, esiDeduction, taxDeduction, netSalary } = calculatePayroll(baseSalary);
       
       return {
         payrollId: `PAY-${Math.floor(Math.random() * 100000)}`,
@@ -1630,10 +1621,11 @@ app.post("/api/voice-interview/start", async (req, res) => {
   saveDB(db);
   
   let audioBase64 = "";
+  let audioMimeType = "";
   if (ai) {
     try {
       const ttsResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-flash-tts-preview",
         contents: [{ parts: [{ text: `Say warmly and clearly: ${greeting}` }] }],
         config: {
           responseModalities: ["AUDIO"],
@@ -1644,7 +1636,9 @@ app.post("/api/voice-interview/start", async (req, res) => {
           },
         },
       });
-      audioBase64 = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
+      const part = ttsResponse.candidates?.[0]?.content?.parts?.[0];
+      audioBase64 = part?.inlineData?.data || "";
+      audioMimeType = part?.inlineData?.mimeType || "audio/wav";
     } catch (e) {
       console.error("TTS generation inside interview start failed", e);
     }
@@ -1653,7 +1647,8 @@ app.post("/api/voice-interview/start", async (req, res) => {
   res.json({
     success: true,
     question: greeting,
-    audioBase64
+    audioBase64,
+    audioMimeType
   });
 });
 
@@ -1752,10 +1747,11 @@ app.post("/api/voice-interview/ask", async (req, res) => {
   
   // Generate Sound question base64
   let audioBase64 = "";
+  let audioMimeType = "";
   if (ai) {
     try {
       const ttsResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-flash-tts-preview",
         contents: [{ parts: [{ text: `Say warmly and clearly: ${nextQuestion}` }] }],
         config: {
           responseModalities: ["AUDIO"],
@@ -1766,7 +1762,9 @@ app.post("/api/voice-interview/ask", async (req, res) => {
           },
         },
       });
-      audioBase64 = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
+      const part = ttsResponse.candidates?.[0]?.content?.parts?.[0];
+      audioBase64 = part?.inlineData?.data || "";
+      audioMimeType = part?.inlineData?.mimeType || "audio/wav";
     } catch (e) {
       console.error("TTS generation inside interview ask follow-up failed", e);
     }
@@ -1775,7 +1773,8 @@ app.post("/api/voice-interview/ask", async (req, res) => {
   res.json({
     success: true,
     question: nextQuestion,
-    audioBase64
+    audioBase64,
+    audioMimeType
   });
 });
 
