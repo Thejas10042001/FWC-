@@ -1,0 +1,8 @@
+{
+  "name": "Enterprise AI HRMS",
+  "description": "Enterprise-grade AI-Powered Human Resource Management System featuring roll-based portals, smart ATS, AI resume screening, AI interview evaluations, automated payroll and tax, and real-time analytical dashboards.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

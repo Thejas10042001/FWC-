@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && getUserRole() == 'Super Admin';
+    }
+
+    function isManagement() {
+      return isSignedIn() && (getUserRole() == 'Management Admin' || getUserRole() == 'Super Admin');
+    }
+
+    function isSeniorManager() {
+      return isSignedIn() && (getUserRole() == 'Senior Manager' || getUserRole() == 'Management Admin' || getUserRole() == 'Super Admin');
+    }
+
+    function isHR() {
+      return isSignedIn() && (getUserRole() == 'HR Recruiter' || getUserRole() == 'Super Admin');
+    }
+
+    function isOwner(uidField) {
+      return isSignedIn() && request.auth.uid == uidField;
+    }
+
+    // Collection: users
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isHR() || isManagement() || isSuperAdmin();
+      allow create: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
+      allow update: if isSignedIn() && (isSuperAdmin() || (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])));
+      allow delete: if isSuperAdmin();
+    }
+
+    // Collection: employees
+    match /employees/{employeeId} {
+      allow read: if isSignedIn() && (isHR() || isManagement() || isSeniorManager() || isOwner(resource.data.userId));
+      allow write: if isHR() || isSuperAdmin();
+    }
+
+    // Collection: attendance
+    match /attendance/{attendanceId} {
+      allow get: if isSignedIn() && (isHR() || isManagement() || isSeniorManager() || isOwner(resource.data.employeeId));
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && (isOwner(request.resource.data.employeeId) || isHR());
+      allow update: if isSignedIn() && (isOwner(resource.data.employeeId) || isHR() || isSeniorManager());
+      allow delete: if isSuperAdmin();
+    }
+
+    // Collection: leaves
+    match /leaves/{leaveId} {
+      allow read: if isSignedIn() && (isHR() || isManagement() || isSeniorManager() || isOwner(resource.data.employeeId));
+      allow create: if isSignedIn() && isOwner(request.resource.data.employeeId);
+      allow update: if isSignedIn() && (isHR() || isSeniorManager() || isOwner(resource.data.employeeId));
+      allow delete: if isSuperAdmin();
+    }
+
+    // Collection: payroll
+    match /payroll/{payrollId} {
+      allow read: if isSignedIn() && (isHR() || isManagement() || isOwner(resource.data.employeeId));
+      allow write: if isHR() || isSuperAdmin();
+    }
+
+    // Collection: performance
+    match /performance/{performanceId} {
+      allow read: if isSignedIn() && (isHR() || isManagement() || isSeniorManager() || isOwner(resource.data.employeeId));
+      allow create: if isHR() || isSeniorManager();
+      allow update: if isSignedIn() && (isHR() || isSeniorManager() || isOwner(resource.data.employeeId));
+      allow delete: if isSuperAdmin();
+    }
+
+    // Collection: jobs
+    match /jobs/{jobId} {
+      allow read: if true; // Public listings can be seen by applicants
+      allow write: if isHR() || isSuperAdmin();
+    }
+
+    // Collection: candidates
+    match /candidates/{candidateId} {
+      allow create: if true; // Public applicant tracking
+      allow read: if isHR() || isManagement() || isSuperAdmin();
+      allow update: if isHR() || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+  }
+}

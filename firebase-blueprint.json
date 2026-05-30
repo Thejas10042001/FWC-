@@ -1,0 +1,179 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents the authentication and basic role of a user in the enterprise system.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user identifier from Firebase Auth." },
+        "email": { "type": "string", "format": "email", "description": "Official company email address." },
+        "name": { "type": "string", "description": "Full name of the user." },
+        "role": { "type": "string", "enum": ["Super Admin", "Management Admin", "Senior Manager", "HR Recruiter", "Employee"], "description": "Role governing access control inside the application." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "User creation timestamp." }
+      },
+      "required": ["uid", "email", "name", "role", "createdAt"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Detailed institutional and personal profile of an employee.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string", "description": "Assigned unique alphanumeric employee ID." },
+        "userId": { "type": "string", "description": "References user ID in users collection." },
+        "fullName": { "type": "string", "description": "Full legal name." },
+        "email": { "type": "string", "format": "email", "description": "Official communication email." },
+        "phone": { "type": "string", "description": "Cellular phone number." },
+        "address": { "type": "string", "description": "Residential current mailing address." },
+        "department": { "type": "string", "description": "Department name (e.g. Engineering, Sales, HR)." },
+        "designation": { "type": "string", "description": "Job title or designation." },
+        "managerId": { "type": "string", "description": "References employeeId of direct report manager." },
+        "joiningDate": { "type": "string", "format": "date", "description": "Hiring or onboarding join date." },
+        "salary": { "type": "number", "description": "Monthly base compensation in currency." },
+        "employmentStatus": { "type": "string", "enum": ["Active", "On Leave", "Suspended", "Terminated"], "description": "Current active employment state." },
+        "resumeUrl": { "type": "string", "description": "Link to uploaded PDF resume document." },
+        "aadhaarUrl": { "type": "string", "description": "Link to Aadhaar verification PDF." },
+        "panUrl": { "type": "string", "description": "Link to PAN card Verification PDF." }
+      },
+      "required": ["employeeId", "fullName", "email", "department", "designation", "salary", "employmentStatus"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Daily attendance entries tracking work time, breaks, and shifts.",
+      "type": "object",
+      "properties": {
+        "attendanceId": { "type": "string", "description": "Unique id for attendance record." },
+        "employeeId": { "type": "string", "description": "Reference ID for the employee." },
+        "date": { "type": "string", "format": "date", "description": "Work date string YYYY-MM-DD." },
+        "checkInTime": { "type": "string", "format": "date-time", "description": "Timestamp when check-in occurred." },
+        "checkOutTime": { "type": "string", "format": "date-time", "description": "Timestamp when check-out occurred." },
+        "breakStartTime": { "type": "string", "format": "date-time", "description": "Starting timestamp of active break." },
+        "totalMinutesOnBreak": { "type": "number", "description": "Accrued minutes on break." },
+        "totalMinutesWorked": { "type": "number", "description": "Net minutes of productive work." },
+        "status": { "type": "string", "enum": ["Present", "Absent", "Late", "Half-Day"], "description": "Calculated attendance state." }
+      },
+      "required": ["attendanceId", "employeeId", "date", "checkInTime", "status"]
+    },
+    "Leave": {
+      "title": "Leave",
+      "description": "Leave requests and structural validation workflows.",
+      "type": "object",
+      "properties": {
+        "leaveId": { "type": "string", "description": "Unique request identifier." },
+        "employeeId": { "type": "string", "description": "Reference ID for requesting employee." },
+        "leaveType": { "type": "string", "enum": ["Casual Leave", "Sick Leave", "Earned Leave", "Maternity Leave"], "description": "Type of leave requested." },
+        "startDate": { "type": "string", "format": "date", "description": "Requested start date." },
+        "endDate": { "type": "string", "format": "date", "description": "Requested end date." },
+        "reason": { "type": "string", "description": "Justification written by employee." },
+        "managerApproval": { "type": "string", "enum": ["Pending", "Approved", "Rejected"], "description": "Status of the direct manager stage." },
+        "hrApproval": { "type": "string", "enum": ["Pending", "Approved", "Rejected"], "description": "Status of the final HR department stage." },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"], "description": "Consolidated active leave lifecycle state." }
+      },
+      "required": ["leaveId", "employeeId", "leaveType", "startDate", "endDate", "status"]
+    },
+    "Payroll": {
+      "title": "Payroll",
+      "description": "Payroll structure, taxes, and monthly payslips metadata.",
+      "type": "object",
+      "properties": {
+        "payrollId": { "type": "string", "description": "Unique transaction id." },
+        "employeeId": { "type": "string", "description": "Assigned employee reference." },
+        "month": { "type": "string", "description": "Payroll period string, format 'YYYY-MM'." },
+        "baseSalary": { "type": "number", "description": "Base salary of employee." },
+        "allowances": { "type": "number", "description": "Combined medical / HRA / allowances." },
+        "pfDeduction": { "type": "number", "description": "Provident Fund (PF) statutory deduction." },
+        "esiDeduction": { "type": "number", "description": "Employee State Insurance (ESI) deduction." },
+        "taxDeduction": { "type": "number", "description": "Calculated income TDS tax deduction." },
+        "netSalary": { "type": "number", "description": "Net payable compensation (Base + Allowances - Deductions)." },
+        "status": { "type": "string", "enum": ["Draft", "Processed", "Paid"], "description": "Disbursal completion status." },
+        "processedAt": { "type": "string", "format": "date-time", "description": "Calculation compilation timestamp." }
+      },
+      "required": ["payrollId", "employeeId", "month", "baseSalary", "netSalary", "status"]
+    },
+    "Performance": {
+      "title": "Performance",
+      "description": "KPI targets, goal metrics, self-reviews, and AI summaries.",
+      "type": "object",
+      "properties": {
+        "performanceId": { "type": "string", "description": "Performance tracking record ID." },
+        "employeeId": { "type": "string", "description": "Assigned employee ID." },
+        "quarter": { "type": "string", "description": "Target cycle period (e.g. 2026-Q1)." },
+        "kpis": { "type": "string", "description": "Set of KPIs or targets assigned." },
+        "selfRating": { "type": "number", "description": "Self evaluation rating between 1 and 5." },
+        "selfReview": { "type": "string", "description": "Review text written by self." },
+        "managerRating": { "type": "number", "description": "Manager rating between 1 and 5." },
+        "managerReview": { "type": "string", "description": "Review notes written by manager." },
+        "aiSummary": { "type": "string", "description": "Gemini-generated performance analysis." },
+        "aiSuggestions": { "type": "string", "description": "Gemini-provided career growth feedback." },
+        "aiTraining": { "type": "string", "description": "Gemini-suggested professional courses." }
+      },
+      "required": ["performanceId", "employeeId", "quarter", "kpis"]
+    },
+    "Job": {
+      "title": "Job",
+      "description": "Recruitment job vacancy listings published by HR.",
+      "type": "object",
+      "properties": {
+        "jobId": { "type": "string", "description": "Alphanumeric unique job vacancy reference." },
+        "title": { "type": "string", "description": "Title of job opening." },
+        "department": { "type": "string", "description": "Department targeting the hiring." },
+        "description": { "type": "string", "description": "Detailed text job description." },
+        "requirements": { "type": "string", "description": "Required skills, education, and years." },
+        "experienceRange": { "type": "string", "description": "E.g. 3-5 Years Required." },
+        "status": { "type": "string", "enum": ["Draft", "Open", "Closed"], "description": "Current availability state." }
+      },
+      "required": ["jobId", "title", "department", "description", "requirements", "status"]
+    },
+    "Candidate": {
+      "title": "Candidate",
+      "description": "Applicant profiles and recruitment stages tracker.",
+      "type": "object",
+      "properties": {
+        "candidateId": { "type": "string", "description": "Unique applicant key." },
+        "jobId": { "type": "string", "description": "Target job vacancy being applied to." },
+        "fullName": { "type": "string", "description": "Full name of candidate." },
+        "email": { "type": "string", "format": "email", "description": "Contact email address." },
+        "phone": { "type": "string", "description": "Applied phone number." },
+        "resumeUrl": { "type": "string", "description": "Uploaded resume path/URL." },
+        "resumeText": { "type": "string", "description": "Full parsed ASCII text from candidate resume." },
+        "stage": { "type": "string", "enum": ["Applied", "Screening", "Interview", "Offer", "Hired", "Rejected"], "description": "Current stage in hiring funnel." },
+        "aiMatchScore": { "type": "number", "description": "Calculated matching percentage 0-100." },
+        "aiEvaluationSummary": { "type": "string", "description": "JSON string summary from resume screener AI." }
+      },
+      "required": ["candidateId", "jobId", "fullName", "email", "stage"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Root security roles map."
+    },
+    "employees": {
+      "schema": "Employee",
+      "description": "Employee database profiles map."
+    },
+    "attendance": {
+      "schema": "Attendance",
+      "description": "Daily timesheets tracking check-ins and breaks."
+    },
+    "leaves": {
+      "schema": "Leave",
+      "description": "Formal corporate leaves tracking workflow."
+    },
+    "payroll": {
+      "schema": "Payroll",
+      "description": "Salaries processing transactions ledger."
+    },
+    "performance": {
+      "schema": "Performance",
+      "description": "Quarterly goals and Gemini evaluations tracker."
+    },
+    "jobs": {
+      "schema": "Job",
+      "description": "Recruitment job openings publisher dashboard."
+    },
+    "candidates": {
+      "schema": "Candidate",
+      "description": "Applications tracker linked with HRATS panel."
+    }
+  }
+}
